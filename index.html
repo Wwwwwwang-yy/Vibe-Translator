@@ -1,0 +1,1293 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VibeTrans - 智能视频字幕翻译</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div id="toast" class="toast">
+        <span class="toast-icon">ℹ️</span>
+        <span class="toast-message"></span>
+    </div>
+
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="loading-spinner"></div>
+        <p>加载中...</p>
+    </div>
+
+    <header class="header">
+        <div class="header-content">
+            <div class="logo">
+                <button id="sidebarToggle" class="sidebar-toggle-btn" title="切换侧边栏">☰</button>
+                <div class="logo-icon"></div>
+                <div class="logo-text">
+                    <h1>VibeTrans</h1>
+                    <p>智能视频字幕翻译</p>
+                </div>
+            </div>
+            <nav class="nav" id="mainNav">
+                <button class="nav-item" data-module="translator">
+                    <span class="nav-icon icon-24" data-icon="translate"></span>
+                    <span>文本翻译</span>
+                </button>
+                <button class="nav-item" data-module="memory">
+                    <span class="nav-icon icon-24" data-icon="memory"></span>
+                    <span>翻译记忆库</span>
+                </button>
+                <button class="nav-item" data-module="corpus">
+                    <span class="nav-icon icon-24" data-icon="corpus"></span>
+                    <span>语料库管理</span>
+                </button>
+                <button class="nav-item" data-module="aligner">
+                    <span class="nav-icon icon-24">🔗</span>
+                    <span>语料对齐</span>
+                </button>
+                <button class="nav-item" data-module="subtitles">
+                    <span class="nav-icon icon-24" data-icon="subtitles"></span>
+                    <span>实时字幕</span>
+                </button>
+                <button class="nav-item active" data-module="settings">
+                    <span class="nav-icon icon-24" data-icon="settings"></span>
+                    <span>API配置</span>
+                </button>
+                <button class="nav-item" onclick="VibeSubtitles.startGuide()" style="margin-top: auto;">
+                    <span class="nav-icon">📖</span>
+                    <span>新手引导</span>
+                </button>
+            </nav>
+        </div>
+    </header>
+
+    <main class="main">
+        <div id="subtitles" class="module active">
+            <div class="toolbar-row timeline-toolbar top-toolbar">
+                <div class="time-mark-section">
+                    <button id="markStart" class="btn btn-secondary btn-sm">
+                        🚩 标记开始
+                    </button>
+                    <span class="marked-time" id="markedStartTime">--:--.--</span>
+                    <button id="markEnd" class="btn btn-secondary btn-sm">
+                        🏁 标记结束
+                    </button>
+                    <span class="marked-time" id="markedEndTime">--:--.--</span>
+                    <button id="addSubtitleBtn" class="btn btn-primary btn-sm">
+                        ➕ 添加字幕
+                    </button>
+                    <div class="add-track-dropdown">
+                        <button class="btn btn-secondary btn-sm" onclick="VibeSubtitles.toggleAddTrackMenu()" title="添加不同类型字幕">▼</button>
+                        <div id="addTrackMenu" class="dropdown-menu" style="display: none;">
+                            <button onclick="VibeSubtitles.addSubtitleToTrack('main')">💬 主对白</button>
+                            <button onclick="VibeSubtitles.addSubtitleToTrack('annotation')">📝 注释字幕</button>
+                            <button onclick="VibeSubtitles.addSubtitleToTrack('title')">🏷️ 人名注释</button>
+                        </div>
+                    </div>
+                    <button id="recognizeSegmentBtn" class="btn btn-secondary btn-sm">
+                        <span class="btn-icon icon-20" data-icon="mic"></span><span>识别区间</span>
+                    </button>
+                    <button id="toggleRecognitionParams" class="btn btn-outline btn-sm" title="识别参数设置">
+                        ⚙ 参数
+                    </button>
+                </div>
+                <div id="recognitionParamsPanel" class="recognition-params-panel">
+                    <div class="param-row">
+                        <label class="param-label">识别语言</label>
+                        <select id="recognizeLang" class="param-select">
+                            <option value="zh">中文 (Chinese)</option>
+                            <option value="en">英文 (English)</option>
+                            <option value="ja">日文 (Japanese)</option>
+                            <option value="ko">韩文 (Korean)</option>
+                            <option value="fr">法文 (French)</option>
+                            <option value="de">德文 (German)</option>
+                            <option value="es">西班牙文 (Spanish)</option>
+                        </select>
+                    </div>
+                    <div class="param-row">
+                        <label class="param-label">温度</label>
+                        <input type="range" id="recognizeTemperature" min="0" max="1" step="0.1" value="0.0" class="param-range">
+                        <span class="param-value" id="temperatureValue">0.0</span>
+                        <span class="param-hint">低=精准, 高=灵活</span>
+                    </div>
+                    <div class="param-row">
+                        <label class="param-label">Beam Size</label>
+                        <input type="range" id="recognizeBeamSize" min="1" max="10" step="1" value="5" class="param-range">
+                        <span class="param-value" id="beamSizeValue">5</span>
+                        <span class="param-hint">越大越精准但越慢</span>
+                    </div>
+                    <div class="param-row">
+                        <label class="param-label">重复惩罚</label>
+                        <input type="range" id="recognizeRepetitionPenalty" min="0" max="2" step="0.1" value="1.0" class="param-range">
+                        <span class="param-value" id="repetitionPenaltyValue">1.0</span>
+                        <span class="param-hint">抑制重复文本</span>
+                    </div>
+                </div>
+                <div class="add-subtitle-section">
+                    <button id="autoGenerateBtn" class="btn btn-success btn-sm">
+                        🎤 自动识别字幕
+                    </button>
+                    <button id="recognizeSegmentBtn" class="btn btn-secondary btn-sm">
+                        ✂️ 区间识别
+                    </button>
+                    <button class="btn btn-secondary btn-sm" onclick="VibeSubtitles.extractVideoText()" title="仅识别文本，不影响波形和时间轴">
+                        📝 提取文本
+                    </button>
+                    <button id="batchTranslate" class="btn btn-secondary btn-sm">
+                        🌐 批量翻译
+                    </button>
+                    <button id="qaCheckBtn" class="btn btn-secondary btn-sm" onclick="VibeSubtitles.showQADialog()">
+                        🔍 质检校对
+                    </button>
+                    <button id="statsBtn" class="btn btn-secondary btn-sm" onclick="VibeSubtitles.showStatsDialog()">
+                        📊 统计报表
+                    </button>
+                </div>
+                <div class="import-export-section">
+                    <label class="btn btn-secondary btn-sm file-btn">
+                        📥 导入字幕
+                        <input type="file" id="subtitleFileInput" accept=".srt,.vtt,.ass,.ssa,.lrc,.txt">
+                    </label>
+                    <label class="btn btn-secondary btn-sm file-btn">
+                        📂 导入项目
+                        <input type="file" id="projectFileInput" accept=".json">
+                    </label>
+                    <div class="dropdown">
+                        <button id="exportDropdown" class="btn btn-primary btn-sm dropdown-btn">
+                            📤 导出
+                            <span class="dropdown-arrow">▼</span>
+                        </button>
+                        <div class="dropdown-menu export-menu">
+                            <div class="dropdown-section">
+                                <span class="dropdown-section-title">🎬 剪辑软件</span>
+                                <button class="dropdown-item" onclick="VibeSubtitles.showExportDialog('ass')">ASS（保留全部特效）</button>
+                                <button class="dropdown-item" onclick="VibeSubtitles.showExportDialog('srt')">SRT 纯字幕</button>
+                            </div>
+                            <div class="dropdown-section">
+                                <span class="dropdown-section-title">📺 平台上传</span>
+                                <button class="dropdown-item" onclick="VibeSubtitles.showExportDialog('vtt')">VTT（B站/通用）</button>
+                                <button class="dropdown-item" onclick="VibeSubtitles.showExportDialog('youtube')">YouTube 字幕</button>
+                                <button class="dropdown-item" onclick="VibeSubtitles.showExportDialog('douyin')">抖音适配字幕</button>
+                            </div>
+                            <div class="dropdown-section">
+                                <span class="dropdown-section-title">🎵 整片导出（含字幕）</span>
+                                <button class="dropdown-item" onclick="VibeSubtitles.exportVideoWithSubtitles('mp4')">🎬 MP4 视频（烧录字幕）</button>
+                                <button class="dropdown-item" onclick="VibeSubtitles.exportVideoWithSubtitles('webm')">🌐 WebM 视频（烧录字幕）</button>
+                                <button class="dropdown-item" onclick="VibeSubtitles.exportAudio()">🎵 WAV 音频（仅音频）</button>
+                            </div>
+                            <div class="dropdown-section">
+                                <span class="dropdown-section-title">💼 交付客户</span>
+                                <button class="dropdown-item" onclick="VibeSubtitles.showExportDialog('word')">双语 Word 文档</button>
+                                <button class="dropdown-item" onclick="VibeSubtitles.showExportDialog('excel')">Excel 对照稿</button>
+                                <button class="dropdown-item" onclick="VibeSubtitles.showExportDialog('csv')">CSV 对照稿</button>
+                            </div>
+                            <div class="dropdown-section">
+                                <span class="dropdown-section-title">🎵 歌词</span>
+                                <button class="dropdown-item" onclick="VibeSubtitles.showExportDialog('lrc')">LRC 双语歌词</button>
+                            </div>
+                            <div class="dropdown-section">
+                                <span class="dropdown-section-title">📚 记忆库</span>
+                                <button class="dropdown-item" onclick="VibeSubtitles.showExportDialog('tmx')">TMX 记忆库格式</button>
+                            </div>
+                            <div class="dropdown-section">
+                                <span class="dropdown-section-title">其他</span>
+                                <button class="dropdown-item" onclick="VibeSubtitles.showExportDialog('project')">项目文件</button>
+                                <button class="dropdown-item" onclick="VibeSubtitles.showExportDialog('text')">纯文本</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="subtitle-layout-new">
+                <div class="subtitle-sidebar">
+                    <div class="video-wrapper-small" id="videoWrapper">
+                        <div class="video-controls-bar">
+                            <div class="video-size-controls">
+                                <button class="size-btn active" data-size="small" title="小尺寸">🗗</button>
+                                <button class="size-btn" data-size="medium" title="中尺寸">🗖</button>
+                                <button class="size-btn" data-size="large" title="大尺寸">🗕</button>
+                                <button class="size-btn" data-size="full" title="全屏">⛶</button>
+                            </div>
+                            <div class="video-playback-controls">
+                                <select id="videoSpeedSelect" class="speed-select" title="播放倍速">
+                                    <option value="0.25">0.25x</option>
+                                    <option value="0.5">0.5x</option>
+                                    <option value="0.75">0.75x</option>
+                                    <option value="1" selected>1x</option>
+                                    <option value="1.25">1.25x</option>
+                                    <option value="1.5">1.5x</option>
+                                    <option value="2">2x</option>
+                                </select>
+                                <button class="btn btn-secondary btn-sm" onclick="VibeSubtitles.showVideoTrimDialog()" title="视频裁切">✂️ 裁切</button>
+                                <button class="btn btn-secondary btn-sm" onclick="VibeSubtitles.exportAudio()" title="导出纯音频">🎵 导出音频</button>
+                            </div>
+                            <div class="display-mode-switch">
+                                <button class="mode-btn active" data-mode="both">双语</button>
+                                <button class="mode-btn" data-mode="original">原文</button>
+                                <button class="mode-btn" data-mode="translated">译文</button>
+                            </div>
+                        </div>
+                        <div class="video-container">
+                            <div class="video-placeholder" id="videoPlaceholder">
+                                <div class="placeholder-icon">🎥</div>
+                                <p>导入视频开始制作字幕</p>
+                                <label class="btn btn-primary file-btn">
+                                    📂 导入视频
+                                    <input type="file" id="videoFileInput" accept="video/*">
+                                </label>
+                            </div>
+                            <video id="subtitleVideo" class="video-player" controls>
+                                <source id="videoSource" src="" type="video/mp4">
+                            </video>
+                            <div class="subtitle-overlay" id="subtitleOverlay">
+                                <div class="subtitle-text-container">
+                                    <div class="subtitle-original" id="subtitleOriginal"></div>
+                                    <div class="subtitle-translated" id="subtitleTranslated"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="style-editor-panel-compact">
+                        <div class="panel-header">
+                            <span class="panel-title">🎨 字幕样式</span>
+                            <label class="switch-label">
+                                <input type="checkbox" id="globalStyleSwitch" checked>
+                                <span class="switch-text" id="styleModeText">全局样式</span>
+                            </label>
+                        </div>
+                        <div class="style-editor-body">
+                            <p class="style-edit-hint" id="styleEditHint">
+                                正在编辑：<span id="editingSubtitleIndex">-</span> 号字幕
+                            </p>
+
+                            <div class="style-section">
+                                <div class="section-header">
+                                    <span class="section-icon">📍</span>
+                                    <h3>位置设置</h3>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>垂直位置</label>
+                                        <input type="range" id="subtitlePosition" min="0" max="100" value="10">
+                                        <span class="range-value" id="positionValue">10%</span>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>水平位置</label>
+                                        <input type="range" id="subtitleHorizontalPosition" min="0" max="100" value="50">
+                                        <span class="range-value" id="horizontalPositionValue">50%</span>
+                                    </div>
+                                </div>
+                                <button class="btn btn-secondary btn-sm w-full" onclick="VibeSubtitles.resetPosition()">🔄 重置位置</button>
+                            </div>
+
+                            <div class="style-section">
+                                <div class="section-header">
+                                    <span class="section-icon">📝</span>
+                                    <h3>文字样式</h3>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>原文字号</label>
+                                        <input type="range" id="originalFontSize" min="8" max="36" value="12">
+                                        <span class="range-value" id="originalSizeValue">12px</span>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>译文字号</label>
+                                        <input type="range" id="translatedFontSize" min="8" max="36" value="12">
+                                        <span class="range-value" id="translatedSizeValue">12px</span>
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>原文颜色</label>
+                                        <input type="color" id="originalColor" value="#ffffff" class="color-picker">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>译文颜色</label>
+                                        <input type="color" id="translatedColor" value="#ffffff" class="color-picker">
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>原文字体</label>
+                                        <select id="originalFontFamily">
+                                            <option value="'Microsoft YaHei', sans-serif">微软雅黑</option>
+                                            <option value="'SimHei', sans-serif">黑体</option>
+                                            <option value="'SimSun', serif">宋体</option>
+                                            <option value="'KaiTi', serif">楷体</option>
+                                            <option value="Arial, sans-serif">Arial</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>译文字体</label>
+                                        <select id="translatedFontFamily">
+                                            <option value="'Microsoft YaHei', sans-serif">微软雅黑</option>
+                                            <option value="'SimHei', sans-serif">黑体</option>
+                                            <option value="'SimSun', serif">宋体</option>
+                                            <option value="'KaiTi', serif">楷体</option>
+                                            <option value="Arial, sans-serif">Arial</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>
+                                        <input type="checkbox" id="syncFontFamily" checked> 同步字体
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div class="style-section">
+                                <div class="section-header">
+                                    <span class="section-icon">⚙️</span>
+                                    <h3>对齐偏移</h3>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>原文垂直偏移</label>
+                                        <input type="range" id="originalVerticalOffset" min="-20" max="20" value="0">
+                                        <span class="range-value" id="originalVerticalOffsetValue">0px</span>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>译文垂直偏移</label>
+                                        <input type="range" id="translatedVerticalOffset" min="-20" max="20" value="4">
+                                        <span class="range-value" id="translatedVerticalOffsetValue">4px</span>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>
+                                        <input type="checkbox" id="syncVerticalOffset" checked> 同步垂直偏移
+                                    </label>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>原文水平偏移</label>
+                                        <input type="range" id="originalHorizontalOffset" min="-100" max="100" value="0">
+                                        <span class="range-value" id="originalHorizontalOffsetValue">0px</span>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>译文水平偏移</label>
+                                        <input type="range" id="translatedHorizontalOffset" min="-100" max="100" value="0">
+                                        <span class="range-value" id="translatedHorizontalOffsetValue">0px</span>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>
+                                        <input type="checkbox" id="syncHorizontalOffset" checked> 同步水平偏移
+                                    </label>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>原文字间距</label>
+                                        <input type="range" id="originalLetterSpacing" min="0" max="10" value="0">
+                                        <span class="range-value" id="originalLetterSpacingValue">0px</span>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>译文字间距</label>
+                                        <input type="range" id="translatedLetterSpacing" min="0" max="10" value="0">
+                                        <span class="range-value" id="translatedLetterSpacingValue">0px</span>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>
+                                        <input type="checkbox" id="syncLetterSpacing" checked> 同步字间距
+                                    </label>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>字间距</label>
+                                        <input type="range" id="letterSpacing" min="0" max="20" value="0">
+                                        <span class="range-value" id="letterSpacingValue">0px</span>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>行间距</label>
+                                        <input type="range" id="lineHeight" min="10" max="30" value="16">
+                                        <span class="range-value" id="lineHeightValue">16px</span>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>文字排版方向</label>
+                                    <select id="textDirection">
+                                        <option value="horizontal">横向排版（默认）</option>
+                                        <option value="vertical">竖向竖排（从上至下）</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="style-section">
+                                <div class="section-header">
+                                    <span class="section-icon">✨</span>
+                                    <h3>视觉效果</h3>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>描边颜色</label>
+                                        <input type="color" id="strokeColor" value="#000000" class="color-picker">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>描边宽度</label>
+                                        <input type="range" id="strokeWidth" min="0" max="10" value="0">
+                                        <span class="range-value" id="strokeWidthValue">0px</span>
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>阴影颜色</label>
+                                        <input type="color" id="shadowColor" value="#000000" class="color-picker">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>阴影偏移</label>
+                                        <input type="range" id="shadowOffset" min="0" max="20" value="2">
+                                        <span class="range-value" id="shadowOffsetValue">2px</span>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>阴影模糊</label>
+                                        <input type="range" id="shadowBlur" min="0" max="20" value="4">
+                                        <span class="range-value" id="shadowBlurValue">4px</span>
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>渐变起始色</label>
+                                        <input type="color" id="gradientStart" value="#ffffff" class="color-picker">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>渐变结束色</label>
+                                        <input type="color" id="gradientEnd" value="#a0a0ff" class="color-picker">
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group" style="flex: 2;">
+                                        <label>渐变方向</label>
+                                        <select id="gradientDirection">
+                                            <option value="horizontal">水平</option>
+                                            <option value="vertical">垂直</option>
+                                            <option value="diagonal">对角线</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group" style="flex: 1; align-self: flex-end;">
+                                        <label class="checkbox-label">
+                                            <input type="checkbox" id="useGradient"> 使用渐变色
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>背景透明度</label>
+                                        <input type="range" id="bgOpacity" min="0" max="100" value="0">
+                                        <span class="range-value" id="bgOpacityValue">0%</span>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>背景颜色</label>
+                                        <input type="color" id="bgColor" value="#000000" class="color-picker">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="style-section">
+                                <div class="section-header">
+                                    <span class="section-icon">🔄</span>
+                                    <h3>滚动效果</h3>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group" style="flex: 2;">
+                                        <label>滚动方向</label>
+                                        <select id="scrollMode">
+                                            <option value="none">无滚动</option>
+                                            <option value="scrollLeft">从右向左</option>
+                                            <option value="scrollRight">从左向右</option>
+                                            <option value="scrollUp">从下向上</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>滚动速度</label>
+                                        <input type="range" id="scrollSpeed" min="1" max="20" value="5">
+                                        <span class="range-value" id="scrollSpeedValue">5</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="style-section">
+                                <div class="section-header">
+                                    <span class="section-icon">🎤</span>
+                                    <h3>卡拉OK特效</h3>
+                                </div>
+                                <div class="form-group">
+                                    <label>
+                                        <input type="checkbox" id="karaokeEnabled"> 启用卡拉OK特效
+                                    </label>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>高亮色</label>
+                                        <input type="color" id="karaokeColor" value="#00ff00" class="color-picker">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>未高亮色</label>
+                                        <input type="color" id="karaokeDimColor" value="#888888" class="color-picker">
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group" style="flex: 2;">
+                                        <label>动画类型</label>
+                                        <select id="karaokeAnimation">
+                                            <option value="gradient">渐变填充</option>
+                                            <option value="colorChange">颜色切换</option>
+                                            <option value="scale">放大效果</option>
+                                            <option value="glow">发光效果</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>动画速度</label>
+                                        <input type="range" id="karaokeSpeed" min="1" max="10" value="5">
+                                        <span class="range-value" id="karaokeSpeedValue">5</span>
+                                    </div>
+                                </div>
+                                <div class="form-group btn-group">
+                                    <button class="btn btn-success btn-sm" onclick="VibeSubtitles.autoGenerateKaraoke()">⚡ 自动生成逐字时间轴</button>
+                                    <button class="btn btn-secondary btn-sm" onclick="VibeSubtitles.clearKaraoke()">🗑️ 清除卡拉OK数据</button>
+                                </div>
+                            </div>
+
+                            <div class="style-section">
+                                <button class="btn btn-primary btn-sm apply-all-btn" onclick="VibeSubtitles.applyStyleToAll()">应用到全部字幕</button>
+                            </div>
+                            
+                            <div class="style-section">
+                                <div class="section-header">
+                                    <span class="section-icon">📁</span>
+                                    <h3>样式模板</h3>
+                                </div>
+                                <div class="template-create-row">
+                                    <input type="text" id="newTemplateName" placeholder="模板名称" class="form-input template-name-input">
+                                    <button class="btn btn-primary btn-sm" onclick="VibeSubtitles.createStyleTemplate(document.getElementById('newTemplateName').value)">创建模板</button>
+                                </div>
+                                <div id="styleTemplatesContainer" class="style-templates-list">
+                                    <p class="text-center text-gray-500 py-4">暂无样式模板，点击上方按钮创建</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="history-panel">
+                        <div class="panel-header" onclick="VibeSnapshotUI.togglePanel()">
+                            <span class="panel-title">📜 历史记录</span>
+                            <span class="history-count" id="historyCount">0</span>
+                            <span class="panel-toggle-icon" id="historyToggleIcon">▼</span>
+                        </div>
+                        <div class="history-panel-body" id="historyPanelBody">
+                            <div class="history-tip-bar">
+                                💡 点击标题可收起历史记录，展开下方字幕编辑区
+                            </div>
+                            <div class="history-filter-bar">
+                                <select id="historyFilter" class="history-filter-select" onchange="VibeSnapshotUI.filterSnapshots(this.value)">
+                                    <option value="all">全部操作</option>
+                                    <option value="add">添加</option>
+                                    <option value="delete">删除</option>
+                                    <option value="update_original">修改原文</option>
+                                    <option value="update_translated">修改译文</option>
+                                    <option value="update_time">调整时间</option>
+                                    <option value="update_style">修改样式</option>
+                                    <option value="batch_translate">批量翻译</option>
+                                    <option value="rollback">回滚</option>
+                                </select>
+                            </div>
+                            <div class="history-list" id="historyList">
+                                <div class="history-empty">
+                                    <span class="history-empty-icon">📭</span>
+                                    <span>暂无历史记录</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="subtitle-main">
+                    <div class="waveform-wrapper">
+                        <div class="waveform-header">
+                            <span class="waveform-title">🎵 音频波形</span>
+                            <div class="waveform-controls">
+                                <button class="btn btn-secondary btn-sm waveform-btn" onclick="VibeAudioManager.play()" disabled>▶️ 播放</button>
+                                <button class="btn btn-secondary btn-sm waveform-btn" onclick="VibeAudioManager.pause()" disabled>⏸️ 暂停</button>
+                                <button class="btn btn-secondary btn-sm waveform-btn active" id="syncToggleBtn" onclick="VibeAudioManager.toggleSync()" title="音波与视频同步播放">🔗 同步</button>
+                                <div class="waveform-volume-control">
+                                    <span class="volume-icon">🔊</span>
+                                    <input type="range" id="volumeSlider" min="0" max="100" value="50" oninput="VibeAudioManager.setVolume(this.value / 100)" disabled class="volume-slider" title="调节音波音量">
+                                    <span class="volume-value" id="volumeValue">50%</span>
+                                </div>
+                                <button class="btn btn-secondary btn-sm waveform-btn" onclick="VibeAudioManager.zoomIn()" disabled>🔍 放大</button>
+                                <button class="btn btn-secondary btn-sm waveform-btn" onclick="VibeAudioManager.zoomOut()" disabled>🔍 缩小</button>
+                                <button class="btn btn-secondary btn-sm waveform-btn" onclick="VibeAudioManager.resetZoom()" disabled>🔄 重置</button>
+                            </div>
+                        </div>
+                        <div id="waveform" class="waveform">
+                            <div class="waveform-placeholder">
+                                <p>导入视频后自动渲染音频波形</p>
+                            </div>
+                        </div>
+                        <div class="waveform-timeline">
+                            <div class="timeline-progress">
+                                <div class="timeline-progress-bar" id="timelineProgressBar"></div>
+                                <div class="timeline-handle" id="timelineHandle"></div>
+                                <div class="timeline-markers" id="timelineMarkers"></div>
+                            </div>
+                            <div class="timeline-labels" id="timelineLabels"></div>
+                            <div class="timeline-time-display">
+                                <span id="timelineCurrentTime">00:00</span>
+                                <span class="timeline-separator">/</span>
+                                <span id="timelineTotalTime">00:00</span>
+                            </div>
+                        </div>
+                        <div class="waveform-hint">
+                            ⌨️ <kbd>空格</kbd>播放 <kbd>←/→</kbd>快进/快退 <kbd>F8</kbd>标记开始 <kbd>F9</kbd>标记结束 <kbd>Enter</kbd>生成字幕
+                        </div>
+                    </div>
+
+                    <div class="timeline-panel-wrapper">
+                        <div class="timeline-panel-header">
+                            <span class="timeline-panel-title">⏱️ 时间轴</span>
+                            <span class="timeline-shortcuts" title="键盘快捷键">
+                                ⌨️ <kbd>Del</kbd>删除 <kbd>Ctrl+Z</kbd>撤销
+                                <span style="margin-left: 8px; color: var(--text-tertiary);" title="对齐快捷键">对齐: <kbd>Alt+←</kbd>左 <kbd>Alt+H</kbd>中 <kbd>Alt+→</kbd>右 / <kbd>Alt+↑</kbd>上 <kbd>Alt+V</kbd>中 <kbd>Alt+↓</kbd>下</span>
+                            </span>
+                            <div class="timeline-panel-controls">
+                                <div class="timeline-display-switch">
+                                    <button class="timeline-display-btn active" data-display="both">双语</button>
+                                    <button class="timeline-display-btn" data-display="original">源语</button>
+                                    <button class="timeline-display-btn" data-display="translated">译语</button>
+                                </div>
+                                <button class="btn btn-secondary btn-sm" onclick="VibeSubtitles.timelineZoomIn()" title="放大时间轴">🔍➕ 放大</button>
+                                <button class="btn btn-secondary btn-sm" onclick="VibeSubtitles.timelineZoomOut()" title="缩小时间轴">🔍➖ 缩小</button>
+                                <button class="btn btn-secondary btn-sm" onclick="VibeSubtitles.timelineZoomReset()" title="还原时间轴">🔄 还原</button>
+                            </div>
+                        </div>
+                        <div id="timelinePanel" class="timeline-panel-body">
+                            <div class="timeline-panel-empty">
+                                <p>导入视频并添加字幕后，时间轴将在此显示</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="subtitle-list-wrapper-large">
+                        <!-- 字幕轨道标签栏 -->
+                        <div id="subtitleTrackTabs" class="track-tabs-bar"></div>
+                        <div class="timeline-header">
+                            <div class="panel-header-left">
+                                <span>📝 字幕列表</span>
+                                <span class="subtitle-count" id="subtitleCount">0 条</span>
+                                <span class="list-shortcuts">⌨️ 双击译文编辑</span>
+                            </div>
+                            <div class="panel-header-right">
+                                <select id="subtitleSourceLang" class="lang-select lang-select-sm" title="源语言">
+                                    <option value="zh">中文→</option>
+                                    <option value="en">英语→</option>
+                                    <option value="ja">日语→</option>
+                                    <option value="ko">韩语→</option>
+                                </select>
+                                <select id="subtitleTargetLang" class="lang-select lang-select-sm" title="目标语言">
+                                    <option value="en">英语</option>
+                                    <option value="zh">中文</option>
+                                    <option value="ja">日语</option>
+                                    <option value="ko">韩语</option>
+                                </select>
+                                <button id="batchTranslateList" class="btn btn-primary btn-sm" title="批量翻译所有未翻译字幕">
+                                    🌐 批量翻译
+                                </button>
+                                <div class="view-mode-switch">
+                                    <button class="view-mode-btn active" data-view="table">📋 列表</button>
+                                    <button class="view-mode-btn" data-view="dual">📑 对照编辑</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="timeline-scroll">
+                            <div id="timelineList" class="timeline-list-compact">
+                                <table class="subtitle-compact-table">
+                                    <thead>
+                                        <tr>
+                                            <th class="col-index">#</th>
+                                            <th class="col-time-start">开始</th>
+                                            <th class="col-time-end">结束</th>
+                                            <th class="col-duration">时长</th>
+                                            <th class="col-original">原文</th>
+                                            <th class="col-translated">译文</th>
+                                            <th class="col-actions">操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="timelineListBody">
+                                        <tr>
+                                            <td colspan="7" class="empty-cell">
+                                                <div class="empty-state-sm">
+                                                    <span>📝</span>
+                                                    <span>暂无字幕数据</span>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div id="dualEditView" class="dual-edit-view">
+                            <div class="dual-edit-toolbar">
+                                <div class="dual-edit-nav">
+                                    <button class="btn btn-secondary btn-sm" onclick="VibeSubtitles.dualEditPrev()">⬆ 上一条</button>
+                                    <button class="btn btn-secondary btn-sm" onclick="VibeSubtitles.dualEditNext()">⬇ 下一条</button>
+                                    <span class="dual-edit-info" id="dualEditInfo">未选择字幕</span>
+                                </div>
+                                <div class="dual-edit-time-controls">
+                                    <span class="dual-edit-time" id="dualEditTime">--:-- --:--</span>
+                                    <button class="btn btn-secondary btn-sm" onclick="VibeSubtitles.dualEditJump()" title="跳转到当前字幕时间点">⏱️ 跳转</button>
+                                    <button class="btn btn-secondary btn-sm" onclick="VibeSubtitles.dualEditPlay()" title="播放当前字幕片段">▶️ 播放</button>
+                                </div>
+                                <div class="dual-edit-mode-switch">
+                                    <button class="btn btn-secondary btn-sm active" id="dualEditSentenceMode" onclick="VibeSubtitles.setDualEditMode('sentence')">📝 句子模式</button>
+                                    <button class="btn btn-secondary btn-sm" id="dualEditCharMode" onclick="VibeSubtitles.setDualEditMode('char')">🔤 单字模式</button>
+                                </div>
+                                <button class="btn btn-primary btn-sm" onclick="VibeSubtitles.dualEditApply()">💾 应用修改</button>
+                            </div>
+                            <div class="dual-edit-panels">
+                                <div class="dual-edit-panel">
+                                    <div class="dual-edit-panel-header">
+                                        <span class="dual-edit-panel-label">原文</span>
+                                        <span class="dual-edit-panel-stats" id="dualEditOriginalStats">0 字</span>
+                                    </div>
+                                    <textarea class="dual-edit-textarea" id="dualEditOriginal" placeholder="选择字幕条目后编辑原文..." oninput="VibeSubtitles.dualEditUpdateStats()"></textarea>
+                                    <div class="dual-edit-char-display" id="dualEditOriginalChars">
+                                        <p class="text-gray-500 text-sm">切换到单字模式查看</p>
+                                    </div>
+                                </div>
+                                <div class="dual-edit-panel">
+                                    <div class="dual-edit-panel-header">
+                                        <span class="dual-edit-panel-label">译文</span>
+                                        <span class="dual-edit-panel-stats" id="dualEditTranslatedStats">0 字</span>
+                                    </div>
+                                    <textarea class="dual-edit-textarea" id="dualEditTranslated" placeholder="选择字幕条目后编辑译文..." oninput="VibeSubtitles.dualEditUpdateStats()"></textarea>
+                                    <div class="dual-edit-char-display" id="dualEditTranslatedChars">
+                                        <p class="text-gray-500 text-sm">切换到单字模式查看</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="dual-edit-char-styles">
+                                <div class="char-style-hint" id="dualEditCharHint">💡 点击下方任意字符即可单独设置颜色、字号、加粗等样式</div>
+                                <div class="char-style-controls">
+                                    <label>字符颜色</label>
+                                    <input type="color" id="dualEditCharColor" value="#ff0000">
+                                    <label>字符字号</label>
+                                    <input type="range" id="dualEditCharFontSize" min="8" max="36" value="12">
+                                    <span class="range-value" id="dualEditCharFontSizeValue">12px</span>
+                                    <label>加粗</label>
+                                    <input type="checkbox" id="dualEditCharBold">
+                                    <button class="btn btn-secondary btn-sm" onclick="VibeSubtitles.clearDualEditCharStyles()">清除字符样式</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="translator" class="module">
+            <div class="translator-page">
+                <h2 class="translator-title">文本翻译</h2>
+                <div class="translator-dual-layout">
+                    <div class="translator-col translator-col-left">
+                        <div class="translator-col-header">
+                            <select id="sourceLang" class="lang-select">
+                                <option value="en">英语</option>
+                                <option value="zh">中文</option>
+                                <option value="ja">日语</option>
+                                <option value="ko">韩语</option>
+                            </select>
+                            <span class="translator-col-label">原文</span>
+                        </div>
+                        <textarea id="sourceText" class="translator-textarea" placeholder="输入要翻译的文本..." rows="6"></textarea>
+                        <div id="termHintContainer" class="term-hint-container" style="display: none;"></div>
+                        <div class="translator-col-footer">
+                            <span id="sourceCount" class="char-count">0 字符</span>
+                            <button id="swapLang" class="btn btn-secondary btn-sm">
+                                <span class="btn-icon icon-20" data-icon="swap"></span>
+                                <span>互换语言</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="translator-center-btn">
+                        <button id="translateBtn" class="btn btn-primary btn-large">
+                            <span class="btn-icon icon-20" data-icon="globe"></span>
+                            <span>翻译</span>
+                        </button>
+                    </div>
+
+                    <div class="translator-col translator-col-right">
+                        <div class="translator-col-header">
+                            <select id="targetLang" class="lang-select">
+                                <option value="zh">中文</option>
+                                <option value="en">英语</option>
+                                <option value="ja">日语</option>
+                                <option value="ko">韩语</option>
+                            </select>
+                            <span class="translator-col-label">译文</span>
+                        </div>
+                        <textarea id="targetText" class="translator-textarea" placeholder="翻译结果将显示在这里..." rows="6"></textarea>
+                        <div class="translator-col-footer">
+                            <button id="copyResult" class="btn btn-secondary btn-sm">
+                                <span class="btn-icon icon-20" data-icon="copy"></span>
+                                <span>复制</span>
+                            </button>
+                            <button id="addToMemory" class="btn btn-primary btn-sm" disabled>
+                                <span class="btn-icon icon-20" data-icon="book"></span>
+                                <span>存入记忆库</span>
+                            </button>
+                            <button id="addToCorpus" class="btn btn-accent btn-sm" disabled>
+                                <span class="btn-icon icon-20" data-icon="folder"></span>
+                                <span>存入语料库</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 存入记忆库确认弹窗 -->
+        <div id="saveMemoryModal" class="modal-overlay">
+            <div class="modal-content modal-md">
+                <button class="modal-close-btn" onclick="VibeTranslator.closeSaveModal('memory')">✕</button>
+                <h3 style="padding: 20px 20px 0;">存入翻译记忆库</h3>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>原文（可编辑）</label>
+                        <textarea id="memorySaveSource" class="form-textarea" rows="3"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>译文（可编辑）</label>
+                        <textarea id="memorySaveTarget" class="form-textarea" rows="3"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" onclick="VibeTranslator.closeSaveModal('memory')">取消</button>
+                    <button class="btn btn-primary" onclick="VibeTranslator.confirmSaveToMemory()">确认存入</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 存入语料库确认弹窗 -->
+        <div id="saveCorpusModal" class="modal-overlay">
+            <div class="modal-content modal-md">
+                <button class="modal-close-btn" onclick="VibeTranslator.closeSaveModal('corpus')">✕</button>
+                <h3 style="padding: 20px 20px 0;">存入语料库</h3>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>原文（可编辑）</label>
+                        <textarea id="corpusSaveSource" class="form-textarea" rows="3"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>译文（可编辑）</label>
+                        <textarea id="corpusSaveTarget" class="form-textarea" rows="3"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" onclick="VibeTranslator.closeSaveModal('corpus')">取消</button>
+                    <button class="btn btn-primary" onclick="VibeTranslator.confirmSaveToCorpus()">确认存入</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="memory" class="module">
+            <div class="module-container">
+                <div class="module-header">
+                    <h2>📚 翻译记忆</h2>
+                    <div class="module-actions">
+                        <input type="text" id="memorySearch" class="form-input" placeholder="搜索...">
+                        <select id="memoryLangFilter" class="lang-select">
+                            <option value="all">全部语言</option>
+                            <option value="en-zh">英中</option>
+                            <option value="zh-en">中英</option>
+                        </select>
+                        <button class="btn btn-secondary btn-sm" onclick="VibeMemory.toggleAdvancedFilters()">🔬 高级筛选</button>
+                        <button class="btn btn-secondary btn-sm" onclick="VibeMemory.showMatchSettingsDialog()">⚙️ 匹配规则</button>
+                        <button id="batchModeBtn" class="btn btn-secondary btn-sm" onclick="VibeMemory.toggleBatchMode()">☑️ 批量编辑</button>
+                        <button id="importMemory" class="btn btn-secondary btn-sm">📥 导入</button>
+                        <button id="importExcelMemory" class="btn btn-secondary btn-sm" onclick="VibeMemory.importExcelBilingual()">📊 导入Excel</button>
+                        <button id="exportMemory" class="btn btn-secondary btn-sm">📤 导出</button>
+                        <button class="btn btn-secondary btn-sm" onclick="VibeMemory.exportTmx()">📚 TMX</button>
+                        <button class="btn btn-secondary btn-sm" onclick="VibeMemory.exportCsv()">📄 CSV</button>
+                        <button id="clearMemory" class="btn btn-danger btn-sm">🗑️ 清空</button>
+                        <input type="file" id="memoryFileInput" accept=".json,.tmx" class="hidden">
+                    </div>
+                </div>
+
+                <!-- 分类标签栏 -->
+                <div id="memoryCategories" class="category-bar"></div>
+
+                <!-- 高级筛选面板 -->
+                <div id="memoryAdvancedFilters" class="advanced-filters-panel" style="display: none;"></div>
+
+                <!-- 批量操作工具栏 -->
+                <div id="memoryBatchToolbar" class="batch-toolbar" style="display: none;">
+                    <span class="batch-info">已选 <strong id="batchSelectedCount">0</strong> 条</span>
+                    <button class="btn btn-secondary btn-sm" onclick="VibeMemory.selectAll()">全选</button>
+                    <button class="btn btn-secondary btn-sm" onclick="VibeMemory.deselectAll()">取消全选</button>
+                    <button class="btn btn-danger btn-sm" onclick="VibeMemory.batchDelete()">🗑️ 批量删除</button>
+                    <button class="btn btn-secondary btn-sm" onclick="VibeMemory.showBatchEditDialog('langPair')">🌐 批量改语言对</button>
+                    <button class="btn btn-secondary btn-sm" onclick="VibeMemory.showBatchEditDialog('text')">📝 批量改文本</button>
+                    <button class="btn btn-secondary btn-sm" onclick="VibeMemory.showBatchEditDialog('category')">📁 批量改分类</button>
+                    <button class="btn btn-secondary btn-sm" onclick="VibeMemory.showMigrateCategoryDialog()">📁 迁移分类</button>
+                    <button class="btn btn-secondary btn-sm" onclick="VibeMemory.batchMarkSource('human')">✍️ 标为人工</button>
+                    <button class="btn btn-secondary btn-sm" onclick="VibeMemory.batchMarkSource('machine')">🤖 标为机器</button>
+                    <button class="btn btn-secondary btn-sm" onclick="VibeMemory.toggleBatchMode()">退出批量</button>
+                </div>
+
+                <div id="memoryList" class="memory-list">
+                </div>
+            </div>
+        </div>
+
+        <div id="corpus" class="module">
+            <div class="module-container">
+                <div class="module-header">
+                    <h2>📁 语料库</h2>
+                    <div class="module-actions" id="corpusNormalActions">
+                        <input type="text" id="corpusSearch" class="form-input" placeholder="搜索...">
+                        <select id="corpusLangFilter" class="lang-select">
+                            <option value="all">全部语言</option>
+                            <option value="en-zh">英中</option>
+                            <option value="zh-en">中英</option>
+                        </select>
+                        <button id="uploadCorpusDoc" class="btn btn-secondary btn-sm">📄 上传文档</button>
+                        <button id="importCorpus" class="btn btn-secondary btn-sm">📥 导入</button>
+                        <button id="exportCorpus" class="btn btn-secondary btn-sm">📤 导出JSON</button>
+                        <button class="btn btn-secondary btn-sm" onclick="VibeCorpus.exportTmx()">📚 导出TMX</button>
+                        <button class="btn btn-primary btn-sm" onclick="VibeCorpus.toggleBatchMode()">☑️ 批量编辑</button>
+                        <button id="clearCorpus" class="btn btn-danger btn-sm">🗑️ 清空</button>
+                        <input type="file" id="corpusFileInput" accept=".json,.csv,.txt,.tmx" class="hidden">
+                        <input type="file" id="corpusDocInput" accept=".txt,.doc,.docx,.pdf,.xlsx,.xls,.html,.htm,.csv,.json,.tmx" class="hidden">
+                    </div>
+                    <div class="module-actions corpus-batch-toolbar" id="corpusBatchToolbar" style="display: none;">
+                        <span class="batch-count-label">已选 <strong id="corpusBatchCount">0</strong> 条</span>
+                        <button class="btn btn-secondary btn-sm" onclick="VibeCorpus.batchAddTags()" title="为选中项添加标签">🏷️ 批量加标签</button>
+                        <button class="btn btn-secondary btn-sm" onclick="VibeCorpus.batchMarkTerm(true)" title="设为强制术语">🔒 设为术语</button>
+                        <button class="btn btn-secondary btn-sm" onclick="VibeCorpus.batchMarkTerm(false)" title="取消强制术语">🔓 取消术语</button>
+                        <button class="btn btn-secondary btn-sm" onclick="VibeCorpus.batchExport()" title="导出选中项">📤 导出选中</button>
+                        <button class="btn btn-danger btn-sm" onclick="VibeCorpus.batchDelete()" title="删除选中项">🗑️ 批量删除</button>
+                        <button class="btn btn-primary btn-sm" onclick="VibeCorpus.toggleBatchMode()">✅ 完成</button>
+                    </div>
+                </div>
+                <div class="add-corpus-form">
+                    <div class="form-row">
+                        <select id="corpusSourceLang" class="lang-select">
+                            <option value="en">英语</option>
+                            <option value="zh">中文</option>
+                        </select>
+                        <textarea id="corpusSourceText" class="form-textarea" placeholder="原文..."></textarea>
+                    </div>
+                    <div class="form-row">
+                        <select id="corpusTargetLang" class="lang-select">
+                            <option value="zh">中文</option>
+                            <option value="en">英语</option>
+                        </select>
+                        <textarea id="corpusTargetText" class="form-textarea" placeholder="译文..."></textarea>
+                    </div>
+                    <div class="form-row">
+                        <input type="text" id="corpusTags" class="form-input" placeholder="标签（用逗号分隔）">
+                        <button id="addCorpusBtn" class="btn btn-primary">添加语料</button>
+                    </div>
+                </div>
+                <div id="corpusList" class="corpus-list">
+                </div>
+            </div>
+        </div>
+
+        <!-- 语料对齐模块 -->
+        <div id="aligner" class="module">
+            <div class="module-container">
+                <div class="module-header">
+                    <h2>🔗 语料清洗与对齐</h2>
+                    <div class="module-actions">
+                        <button class="btn btn-secondary btn-sm" onclick="VibeAligner.showHelp()" title="使用说明">❓ 帮助</button>
+                        <button class="btn btn-secondary btn-sm" onclick="VibeAligner.resetAll()" title="清空所有">🗑️ 清空</button>
+                    </div>
+                </div>
+
+                <!-- 步骤 1：导入原文/译文文件 -->
+                <div class="aligner-section">
+                    <h3>① 导入文件</h3>
+                    <div class="aligner-import-row">
+                        <div class="aligner-file-box">
+                            <h4>📄 原文文件</h4>
+                            <label class="btn btn-primary btn-sm file-btn">
+                                📂 选择原文文件
+                                <input type="file" id="alignerSourceFile" accept=".txt,.md,.pdf,.docx,.doc" onchange="VibeAligner.loadFile('source', this.files[0])">
+                            </label>
+                            <div id="alignerSourceInfo" class="file-info">未导入</div>
+                        </div>
+                        <div class="aligner-file-box">
+                            <h4>📄 译文文件</h4>
+                            <label class="btn btn-primary btn-sm file-btn">
+                                📂 选择译文文件
+                                <input type="file" id="alignerTargetFile" accept=".txt,.md,.pdf,.docx,.doc" onchange="VibeAligner.loadFile('target', this.files[0])">
+                            </label>
+                            <div id="alignerTargetInfo" class="file-info">未导入</div>
+                        </div>
+                    </div>
+                    <div class="aligner-options">
+                        <label>源语言:
+                            <select id="alignerSourceLang" class="lang-select">
+                                <option value="en">英文</option>
+                                <option value="zh" selected>中文</option>
+                                <option value="ja">日文</option>
+                                <option value="ko">韩文</option>
+                                <option value="fr">法文</option>
+                            </select>
+                        </label>
+                        <label>目标语言:
+                            <select id="alignerTargetLang" class="lang-select">
+                                <option value="en">英文</option>
+                                <option value="zh">中文</option>
+                                <option value="ja">日文</option>
+                                <option value="ko">韩文</option>
+                            </select>
+                        </label>
+                        <button class="btn btn-success btn-sm" onclick="VibeAligner.runAlign()">🚀 自动对齐</button>
+                        <button class="btn btn-secondary btn-sm" onclick="VibeAligner.showManualAlignDialog()">✋ 手动配对</button>
+                    </div>
+                </div>
+
+                <!-- 步骤 2：清洗工具 -->
+                <div class="aligner-section" id="alignerCleanSection" style="display: none;">
+                    <h3>② 清洗工具</h3>
+                    <div class="aligner-clean-toolbar">
+                        <button class="btn btn-secondary btn-sm" onclick="VibeAligner.cleanTrimAll()" title="去除首尾空白">✂️ 去空格</button>
+                        <button class="btn btn-secondary btn-sm" onclick="VibeAligner.cleanDedupAll()" title="移除完全重复的对">🚫 去重</button>
+                        <button class="btn btn-secondary btn-sm" onclick="VibeAligner.cleanEmptyAll()" title="移除空行">🗑️ 去空行</button>
+                        <button class="btn btn-secondary btn-sm" onclick="VibeAligner.showFindReplaceDialog()">🔍 查找替换</button>
+                        <button class="btn btn-secondary btn-sm" onclick="VibeAligner.mergeSelected()" title="合并选中行">🔗 合并选中</button>
+                        <button class="btn btn-secondary btn-sm" onclick="VibeAligner.splitSelected()" title="拆分选中行">✂️ 拆分选中</button>
+                        <button class="btn btn-secondary btn-sm" onclick="VibeAligner.linkAllPairs()" title="将所有对齐结果链接为译文对">🔗 全部链接</button>
+                        <button class="btn btn-danger btn-sm" onclick="VibeAligner.deleteSelected()">🗑️ 删除选中</button>
+                        <span class="aligner-count" id="alignerCountInfo">0 对</span>
+                    </div>
+                </div>
+
+                <!-- 步骤 3：对齐结果表格 -->
+                <div class="aligner-section" id="alignerTableSection" style="display: none;">
+                    <h3>③ 对齐结果（勾选行后双击光标位置拆分，未勾选双击编辑；点击🔗链接译文对，点击👁️对照查看）</h3>
+                    <div class="aligner-table-wrapper">
+                        <table class="aligner-table">
+                            <thead>
+                                <tr>
+                                    <th class="col-sel"><input type="checkbox" id="alignerSelectAll" onchange="VibeAligner.selectAll(this.checked)"></th>
+                                    <th class="col-idx">#</th>
+                                    <th class="col-src">原文</th>
+                                    <th class="col-tgt">译文</th>
+                                    <th class="col-actions">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="alignerTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 步骤 4：导出与导入到记忆库/术语库 -->
+                <div class="aligner-section" id="alignerExportSection" style="display: none;">
+                    <h3>④ 导出与入库</h3>
+                    <div class="aligner-export-toolbar">
+                        <button class="btn btn-primary btn-sm" onclick="VibeAligner.importToMemory()">📚 一键导入记忆库</button>
+                        <button class="btn btn-primary btn-sm" onclick="VibeAligner.importToCorpus()">📁 一键导入语料库</button>
+                        <button class="btn btn-primary btn-sm" onclick="VibeAligner.importToGlossary()">📖 一键导入术语库</button>
+                        <button class="btn btn-secondary btn-sm" onclick="VibeAligner.exportTmx()">📚 导出 TMX</button>
+                        <button class="btn btn-secondary btn-sm" onclick="VibeAligner.exportCsv()">📄 导出 CSV</button>
+                        <button class="btn btn-secondary btn-sm" onclick="VibeAligner.exportBilingualTxt()">📝 导出双语 TXT</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="settings" class="module">
+            <div class="settings-container">
+                <h2>⚙️ API配置</h2>
+                <p class="settings-desc">配置翻译服务及API密钥，密钥仅存储在本地浏览器中，不上传到服务器</p>
+                
+                <div class="settings-grid">
+                    <div class="settings-card">
+                        <h3>翻译服务选择</h3>
+                        <div class="card-body">
+                            <div class="radio-group">
+                                <label>
+                                    <input type="radio" name="translateService" value="baidu">
+                                    <span>百度翻译 API</span>
+                                </label>
+                                <label>
+                                    <input type="radio" name="translateService" value="youdao">
+                                    <span>有道翻译 API</span>
+                                </label>
+                                <label>
+                                    <input type="radio" name="translateService" value="google">
+                                    <span>Google 翻译 API</span>
+                                </label>
+                                <label>
+                                    <input type="radio" name="translateService" value="free" checked>
+                                    <span>免费翻译服务（有限制）</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-card">
+                        <h3>API密钥配置</h3>
+                        <div class="card-body">
+                            <div class="form-group">
+                                <label>App ID / API Key</label>
+                                <input type="text" id="apiKeyInput" class="form-input" placeholder="输入您的API密钥">
+                                <p class="form-hint">密钥仅存储在本地浏览器中，不上传到服务器</p>
+                            </div>
+                            <div class="form-group">
+                                <label>App Secret / Secret Key</label>
+                                <input type="password" id="apiSecretInput" class="form-input" placeholder="输入您的Secret密钥（如适用）">
+                            </div>
+                            <button id="saveApiConfig" class="btn btn-primary">保存配置</button>
+                        </div>
+                    </div>
+
+                    <div class="settings-card">
+                        <h3>翻译优先级</h3>
+                        <div class="card-body">
+                            <div class="priority-list">
+                                <div class="priority-item">
+                                    <span class="priority-number">1</span>
+                                    <div class="priority-content">
+                                        <span class="priority-label">语料库匹配</span>
+                                        <span class="priority-desc">精确匹配语料库中的翻译</span>
+                                    </div>
+                                </div>
+                                <div class="priority-item">
+                                    <span class="priority-number">2</span>
+                                    <div class="priority-content">
+                                        <span class="priority-label">翻译记忆库</span>
+                                        <span class="priority-desc">模糊匹配历史翻译记录</span>
+                                    </div>
+                                </div>
+                                <div class="priority-item">
+                                    <span class="priority-number">3</span>
+                                    <div class="priority-content">
+                                        <span class="priority-label">机器翻译API</span>
+                                        <span class="priority-desc">调用外部翻译服务</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-card">
+                        <h3>数据管理与部署</h3>
+                        <div class="card-body">
+                            <div class="data-management-buttons">
+                                <button id="exportAllData" class="btn btn-secondary btn-sm">📤 导出全部数据</button>
+                                <button id="clearAllData" class="btn btn-danger btn-sm">🗑️ 重置所有数据</button>
+                            </div>
+                            <div class="storage-info">
+                                <div class="storage-item">
+                                    <span>本地存储使用</span>
+                                    <span id="storageUsed">0 KB</span>
+                                </div>
+                            </div>
+                            
+                            <div class="deploy-section">
+                                <div class="section-divider">
+                                    <span>一键部署</span>
+                                </div>
+                                <p class="deploy-desc">将项目快速部署到云端平台</p>
+                                <div class="deploy-buttons">
+                                    <a href="https://vercel.com/new/clone?repository-url=https://github.com/your-repo/vibetrans" 
+                                       target="_blank" 
+                                       class="deploy-btn vercel-btn"
+                                       onclick="VibeSettings.trackDeploy('vercel')">
+                                        <span class="deploy-icon">▲</span>
+                                        <span class="deploy-label">Vercel</span>
+                                    </a>
+                                    <a href="https://render.com/deploy?repo=https://github.com/your-repo/vibetrans" 
+                                       target="_blank" 
+                                       class="deploy-btn render-btn"
+                                       onclick="VibeSettings.trackDeploy('render')">
+                                        <span class="deploy-icon">⏺</span>
+                                        <span class="deploy-label">Render</span>
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <div id="addSubtitleModal" class="modal-overlay">
+        <div class="modal-content">
+            <button class="modal-close-btn" onclick="VibeSubtitles.closeAddModal()">✕</button>
+            <h3 style="padding: 20px 20px 0;">添加字幕</h3>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>时间范围</label>
+                    <div id="modalTimeRange" class="time-range" style="text-align: center; padding: 12px; background-color: var(--bg-secondary); border-radius: var(--radius); font-family: monospace; color: var(--primary-color);">--:--.-- → --:--.--</div>
+                </div>
+                <div class="form-group">
+                    <label>目标轨道</label>
+                    <select id="addSubtitleTrack" class="form-input" onchange="VibeSubtitles.onAddTrackChange(this.value)">
+                        <option value="main">💬 主对白</option>
+                        <option value="title">🏷️ 人名注释</option>
+                        <option value="annotation">📝 剧情注释</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>原文</label>
+                    <textarea id="modalOriginalText" class="form-textarea" rows="3" placeholder="输入字幕原文..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer" style="display: flex; gap: 12px; justify-content: flex-end; padding: 16px 20px; border-top: 1px solid var(--border-light);">
+                <button class="btn btn-secondary" onclick="VibeSubtitles.closeAddModal()">取消</button>
+                <button class="btn btn-primary" onclick="VibeSubtitles.confirmAddSubtitle()">确定</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="memoryModal" class="modal-overlay">
+        <div class="modal-content">
+            <button class="modal-close-btn" onclick="VibeApp.closeMemoryModal()">✕</button>
+            <div class="modal-header">
+                <h3>记忆库详情</h3>
+            </div>
+            <div class="modal-body" id="memoryModalBody">
+            </div>
+            <div class="modal-footer" style="display: flex; gap: 12px; justify-content: flex-end; padding: 16px 20px; border-top: 1px solid var(--border-light);">
+                <button class="btn btn-danger btn-sm" onclick="VibeApp.deleteMemoryItem()">删除</button>
+                <button class="btn btn-primary" onclick="VibeApp.useMemoryItem()">应用到翻译</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/public/ffmpeg/ffmpeg.min.js"></script>
+    <script src="/public/wavesurfer/wavesurfer.min.js"></script>
+    <script src="/public/wavesurfer/regions.js"></script>
+    <script type="module">
+  import * as transformers from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2/dist/transformers.min.js';
+  window.transformers = transformers;
+  window.pipeline = transformers.pipeline;
+  window.loadTransformers = function() { return transformers; };
+  transformers.env.allowLocalModels = false;
+  transformers.env.allowRemoteModels = true;
+  console.log('[Transformers] Loaded from CDN, env configured');
+</script>
+    <script src="js/icons.js"></script>
+    <script src="js/storage.js"></script>
+    <script src="js/model-cache.js"></script>
+    <script src="js/translator.js"></script>
+    <script src="js/memory.js"></script>
+    <script src="js/corpus.js"></script>
+    <script src="js/aligner.js"></script>
+    <script src="js/audio-manager.js"></script>
+    <script src="js/subtitles.js"></script>
+    <script src="js/settings.js"></script>
+    <script src="js/projects.js"></script>
+    <script src="js/undo.js"></script>
+    <script src="js/snapshot.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

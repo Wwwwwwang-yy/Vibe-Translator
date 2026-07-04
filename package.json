@@ -1,32 +1,24 @@
 {
-  "name": "@ffmpeg/types",
-  "version": "0.12.4",
-  "description": "ffmpeg.wasm types",
-  "types": "types",
-  "files": [
-    "types"
-  ],
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/ffmpegwasm/ffmpeg.wasm.git"
+  "name": "vibetrans-server",
+  "version": "1.0.0",
+  "description": "VibeTrans Translation Server",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
   },
-  "keywords": [
-    "ffmpeg",
-    "WebAssembly",
-    "video",
-    "audio",
-    "transcode"
-  ],
-  "author": "Jerome Wu <jeromewus@gmail.com>",
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/ffmpegwasm/ffmpeg.wasm/issues"
-  },
-  "engines": {
-    "node": ">=16.x"
-  },
-  "homepage": "https://github.com/ffmpegwasm/ffmpeg.wasm#readme",
-  "publishConfig": {
-    "access": "public"
+  "dependencies": {
+    "@ffmpeg/core": "^0.12.10",
+    "@ffmpeg/ffmpeg": "^0.12.15",
+    "@ffmpeg/util": "^0.12.2",
+    "axios": "^1.6.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "fluent-ffmpeg": "^2.1.2",
+    "idb": "^8.0.3",
+    "multer": "^1.4.5-lts.1",
+    "vosk-browser": "^0.0.8",
+    "wavesurfer.js": "^7.8.2"
   }
 }
